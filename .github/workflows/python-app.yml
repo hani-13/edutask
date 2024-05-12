@@ -30,4 +30,4 @@ jobs:
         if [ -f requirements.pip ]; then pip install -r requirements.pip; fi
     - name: Test with pytest
       run: |
-        pytest backend/test/integration/test_create.py
+        pytest -s backend/test/integration/test_create.py
