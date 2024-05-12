@@ -21,14 +21,14 @@ class TestUserController:
         assert str(e.value) == 'Error: invalid email address'
 
     def test_get_user_by_email_nonexistent(self, mock):
-        mock.find.return_value = [None]
+        mock.find.return_value = []
         user_controller = UserController(mock)
         user = user_controller.get_user_by_email('nonexistent@example.com')
         assert user is None, "The user does not exist"
 
 
     def test_get_user_by_email_multiple_users_nonexistent(self, mock):
-        mock.find.return_value = [None, None, None]
+        mock.find.return_value = []
         user_controller = UserController(mock)
         user = user_controller.get_user_by_email('nonexistent@example.com')
         assert user is None, "The user does not exist"
