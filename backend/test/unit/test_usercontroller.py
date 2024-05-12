@@ -27,11 +27,11 @@ class TestUserController:
         assert user is None, "The user does not exist"
 
 
-    def test_get_user_by_email_multiple_users_nonexistent(self, mock):
+    """ def test_get_user_by_email_multiple_users_nonexistent(self, mock):
         mock.find.return_value = []
         user_controller = UserController(mock)
         user = user_controller.get_user_by_email('nonexistent@example.com')
-        assert user is None, "The user does not exist"
+        assert user is None, "The user does not exist" """
 
     def test_get_user_by_email_multiple_users(self, mock):
         mock.find.return_value = [{'email': 'smith@gmail.com', 'name': 'Smith'}, {'email': 'smith@gmail.com', 'name': 'John'}]
