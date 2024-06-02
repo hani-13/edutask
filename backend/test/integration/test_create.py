@@ -1,77 +1,97 @@
 import unittest
-from unittest.mock import MagicMock, patch, mock_open
 from src.util.dao import DAO
-from src.util.validators import getValidator  # Import getValidator function
+from src.util.validators import getValidator
+import os
+from pymongo import MongoClient
+from pymongo.errors import OperationFailure
+from bson import ObjectId
+import json
 
 class TestCreateMethod(unittest.TestCase):
 
-    @patch('src.util.dao.getValidator', return_value={})
-    @patch('pymongo.MongoClient')
-    def setUp(self, mock_mongo_client, mock_getValidator):
-        self.mock_database = MagicMock()  # Mock MongoDB database object
-        mock_mongo_client.return_value.edutask = self.mock_database  # Set MongoDB database mock
-        self.dao = DAO(collection_name="test_collection")
-        self.dao.collection = MagicMock()  # Mock the MongoDB collection
+    @classmethod
+    def setUpClass(cls):
+        mongo_url = os.getenv('MONGO_URL', 'mongodb://root:root@localhost:27017')
+        try:
+            cls.client = MongoClient(mongo_url)
+            cls.db = cls.client['edutask']
+            cls.dao = DAO(collection_name="video")
+            cls.dao.collection = cls.db['video']
+        except OperationFailure as e:
+            print(f"Authentication failed: {e}")
+            raise e
 
-    def tearDown(self):
-        self.dao.collection = None  # Clean up any data created
+    @classmethod
+    def tearDownClass(cls):
+        cls.client.drop_database(cls.db.name)
+        cls.client.close()
+
+    def setUp(self):
+        self.dao.collection.delete_many({})
 
     def test_create_compliant_data_insertion(self):
         compliant_data = {
-            "title": "Test Title",
-            "description": "Test Description"
+            "url": "https://www.youtube.com/watch?v=1"
         }
-        self.dao.collection.insert_one.return_value.inserted_id = "test_id"
-
-        result = self.dao.create(compliant_data)
-        self.dao.collection.insert_one.assert_called_once_with(compliant_data)
-
-
-    def test_create_compliant_data_result(self):
-        compliant_data = {
-            "title": "Test Title",
-            "description": "Test Description"
-        }
-        self.dao.collection.insert_one.return_value.inserted_id = "test_id"  # Mock insert_one method
-
-        created_obj = {"_id": "test_id", "title": "Test Title", "description": "Test Description"}
-        self.dao.collection.find_one.return_value = created_obj  # Mock find_one method
-
         result = self.dao.create(compliant_data)
         self.assertIsNotNone(result)
-        self.assertIsInstance(result, dict)
         self.assertIn('_id', result)
-        self.assertEqual(result['_id'], "test_id")
-        self.assertEqual(result['title'], "Test Title")
-        self.assertEqual(result['description'], "Test Description")
+
+        inserted_id = result['_id']
+        if isinstance(inserted_id, dict) and '$oid' in inserted_id:
+            inserted_id = ObjectId(inserted_id['$oid'])
+
+        created_obj = self.dao.collection.find_one({'_id': inserted_id})
+        self.assertEqual(created_obj['url'], compliant_data['url'])
 
     def test_create_compliant_data_find_one_call(self):
         compliant_data = {
-            "title": "Test Title",
-            "description": "Test Description"
+            "url": "https://www.youtube.com/watch?v=1"
         }
-        self.dao.collection.insert_one.return_value.inserted_id = "test_id"
-
         result = self.dao.create(compliant_data)
-        self.dao.collection.find_one.assert_called_once_with({'_id': "test_id"})  # Assert find_one call
+
+        inserted_id = result['_id']
+
+        if isinstance(inserted_id, dict) and '$oid' in inserted_id:
+            inserted_id = ObjectId(inserted_id['$oid'])
+
+        created_obj = self.dao.collection.find_one({'_id': inserted_id})
+        self.assertIsNotNone(created_obj)
+        self.assertEqual(created_obj['url'], compliant_data['url'])
 
     def test_create_non_compliant_data(self):
         non_compliant_data = {
-            "email": "test@example.com"
+            "email": "test@gmail.com"
         }
-        self.dao.collection.insert_one.side_effect = Exception("WriteError")
-
         with self.assertRaises(Exception):
-            self.dao.create(non_compliant_data)  # Verify exception is raised
+            self.dao.create(non_compliant_data)
 
-        self.dao.collection.insert_one.assert_called_once_with(non_compliant_data)
 
-    @patch('builtins.open', new_callable=mock_open, read_data='{"example": "validator"}')
-    def test_getValidator_loads_validator_from_json(self, mock_open):
-        collection_name = "example_collection"
+    def test_getValidator_loads_validator_from_json(self):
+        collection_name = "video"
+        expected_file_path = f'./src/static/validators/{collection_name}.json'
+
+        expected_validator = {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["url"],
+                "properties": {
+                    "url": {
+                        "bsonType": "string",
+                        "description": "the url of a YouTube video must be determined"
+                    }
+                }
+            }
+        }
+
         validator = getValidator(collection_name)
-        mock_open.assert_called_once_with(f'./src/static/validators/{collection_name}.json', 'r')
-        self.assertEqual(validator, {"example": "validator"})
+
+        self.assertEqual(validator, expected_validator)
+
+        with open(expected_file_path, 'r') as f:
+            file_contents = json.load(f)
+        self.assertEqual(validator, file_contents)
+
 
 if __name__ == '__main__':
     unittest.main()
