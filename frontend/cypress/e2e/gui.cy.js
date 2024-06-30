@@ -68,10 +68,10 @@ describe('Testing todo-items', () => {
 
 
     it('TC5: Mark todo item as “done”', () => {
-        // Select the second todo item and click the checker span to mark it as done
+        // Select the first todo item and click the checker span to mark it as done
         cy.get('ul.todo-list li.todo-item').first().find('span.checker').click();
 
-        // Verify that the span now has the 'checked' class for the second item
+        // Verify that the span now has the 'checked' class for the first item
         cy.get('ul.todo-list li.todo-item').first().find('span.checker').should('have.class', 'checked');
     });
 
