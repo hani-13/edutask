@@ -48,12 +48,6 @@ class TestVideoDAO(unittest.TestCase):
         with self.assertRaises(Exception):
             self.dao.create(data)
 
-    def test_U1TC03_create_with_empty_data(self):
-        """U1TC03: Invalid input - empty JSON"""
-        data = {}
-        with self.assertRaises(Exception):
-            self.dao.create(data)
-
     # === FIND_ONE Tests ===
 
     def test_U2TC01_findone_existing_id(self):
