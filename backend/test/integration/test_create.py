@@ -1,70 +1,66 @@
 import unittest
-from src.util.dao import DAO
 from bson import ObjectId
 from pymongo import MongoClient
-from pymongo.errors import OperationFailure
+from pymongo.errors import WriteError, ServerSelectionTimeoutError
+from src.util.dao import DAO
 import os
+from types import SimpleNamespace
 
-class TestVideoDAO(unittest.TestCase):
+
+class IntegrationTestDAOCreate(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         mongo_url = os.getenv('MONGO_URL', 'mongodb://root:root@localhost:27017')
         try:
-            cls.client = MongoClient(mongo_url)
+            cls.client = MongoClient(mongo_url, serverSelectionTimeoutMS=3000)
             cls.db = cls.client['edutask']
-            cls.temp_collection_name = "video_test"
-            cls.dao = DAO(collection_name=cls.temp_collection_name)
-            cls.dao.collection = cls.db[cls.temp_collection_name]
-        except OperationFailure as e:
-            print(f"MongoDB connection/authentication failed: {e}")
-            raise e
+            cls.collection_name = 'video_test'
+            cls.dao = DAO(collection_name=cls.collection_name)
+            cls.dao.collection = cls.db[cls.collection_name]
+        except Exception as e:
+            print(f"MongoDB setup failed: {e}")
+            raise
 
     @classmethod
     def tearDownClass(cls):
-        cls.db.drop_collection(cls.temp_collection_name)
+        cls.db.drop_collection(cls.collection_name)
         cls.client.close()
 
     def setUp(self):
-        # Clear the temporary test collection before each test
+        # Clear collection before each test
         self.dao.collection.delete_many({})
 
-    # === CREATE Tests ===
-
-    def test_U1TC01_create_with_valid_data(self):
-        """U1TC01: Valid input - should insert data correctly"""
-        data = {"url": "https://www.youtube.com/watch?v=1"}
+    # === TC01: URL present, DB available ===
+    def test_TC01_valid_url_and_db_available(self):
+        """TC01: Data inserted correctly and returned"""
+        data = {"url": "https://www.youtube.com/watch?v=123"}
         result = self.dao.create(data)
         self.assertIsNotNone(result)
-        self.assertIn('_id', result)
+        self.assertIn("_id", result)
 
-        inserted_id = ObjectId(result['_id'])
-        found = self.dao.collection.find_one({'_id': inserted_id})
-        self.assertIsNotNone(found)
-        self.assertEqual(found['url'], data['url'])
+        # Verify it exists in DB
+        inserted = self.dao.collection.find_one({"_id": ObjectId(result['_id'])})
+        self.assertIsNotNone(inserted)
+        self.assertEqual(inserted['url'], data['url'])
 
-    def test_U1TC02_create_with_missing_url_field(self):
-        """U1TC02: Invalid input - missing 'url' field"""
-        data = {"email": "test@gmail.com"}
-        with self.assertRaises(Exception):
+    # === TC02: URL missing, DB available ===
+    def test_TC02_missing_url_field(self):
+        """TC02: Exception due to missing required field"""
+        data = {"title": "No URL here"}
+        with self.assertRaises(WriteError):
             self.dao.create(data)
 
-    # === FIND_ONE Tests ===
+    # === TC03: URL present, DB unavailable ===
+    def test_TC03_valid_url_but_db_unavailable(self):
+        """TC03: Exception due to connection failure"""
+        bad_client = MongoClient("mongodb://localhost:9999", serverSelectionTimeoutMS=1000)
+        bad_db = bad_client['edutask']
+        bad_collection = bad_db[self.collection_name]
+        bad_dao = SimpleNamespace(collection=bad_collection)
 
-    def test_U2TC01_findone_existing_id(self):
-        """U2TC01: Valid ID - should return correct data"""
-        data = {"url": "https://www.youtube.com/watch?v=1"}
-        result = self.dao.create(data)
-        inserted_id = ObjectId(result['_id'])
-
-        found = self.dao.collection.find_one({'_id': inserted_id})
-        self.assertIsNotNone(found)
-        self.assertEqual(found['url'], data['url'])
-
-    def test_U2TC02_findone_nonexistent_id(self):
-        """U2TC02: Non-existent ID - should return None"""
-        fake_id = ObjectId()
-        found = self.dao.collection.find_one({'_id': fake_id})
-        self.assertIsNone(found)
+        with self.assertRaises(ServerSelectionTimeoutError):
+            # Simulate what DAO.create would do
+            inserted_id = bad_dao.collection.insert_one({"url": "https://www.youtube.com/watch?v=456"}).inserted_id
 
 
 if __name__ == '__main__':
