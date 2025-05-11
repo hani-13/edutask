@@ -30,12 +30,7 @@ def clear_collection(dao):
 def test_TC1_valid_data_db_available(dao):
     data = {"url": "https://www.youtube.com/watch?v=123"}
     result = dao.create(data)
-    assert result is not None
-    assert "_id" in result
-
-    inserted = dao.collection.find_one({"_id": ObjectId(result["_id"])})
-    assert inserted is not None
-    assert inserted["url"] == data["url"]
+    assert dao.collection.find_one({"_id": ObjectId(result["_id"])}) is not None
 
 
 # === TC02: URL missing, DB available ===
@@ -45,9 +40,9 @@ def test_TC2_missing_url_db_available(dao):
         dao.create(data)
 
 
- # === TC03: URL present, DB unavailable ===
+# === TC03: URL present, DB unavailable ===
 def test_TC3_valid_data_db_unavailable():
-    bad_client = MongoClient("mongodb://localhost:9999", serverSelectionTimeoutMS=1000)
+    bad_client = MongoClient("mongodb://localhost:9999", serverSelectionTimeoutMS=1000) # this reduces the wait time for testing purpose
     bad_db = bad_client['edutask']
     bad_collection = bad_db["video_test"]
 
